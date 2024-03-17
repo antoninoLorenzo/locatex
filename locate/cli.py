@@ -10,6 +10,7 @@ INDEX_PATH = Path(Path('~').expanduser() / '.locatex' / 'index.db')
 
 
 class ValidateRegex(Action):
+    """Validates user input regex"""
 
     def __call__(self, parser, namespace, values, option_string=None):
         # TODO: parse regex
@@ -18,7 +19,6 @@ class ValidateRegex(Action):
 
 def update_index():
     """Launches Rust scanner"""
-    pass
 
 
 def setup_index():

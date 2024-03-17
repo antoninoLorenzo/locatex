@@ -1,3 +1,4 @@
+"""Utilities for testing"""
 import linecache
 import os
 import time
@@ -20,7 +21,7 @@ def performance_test(function):
 
         result = function(*args, **kwargs)
 
-        execution_time = (time.time() - start)
+        execution_time = time.time() - start
         memory_snapshot = tracemalloc.take_snapshot()
 
         return result, execution_time, memory_snapshot
@@ -53,5 +54,4 @@ def display_top(snapshot, key_type='lineno', limit=3):
         size = sum(stat.size for stat in other)
         print(f"{len(other)} other: {(size / 1024):.1f} KiB")
     total = sum(stat.size for stat in top_stats)
-    print("Total allocated size: %.1f KiB" % (total / 1024))
-
+    print(f"Total allocated size: {(total / 1024):.1f} KiB")
