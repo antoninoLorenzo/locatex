@@ -6,6 +6,8 @@
 use std::fs;
 use std::fmt;
 use std::fs::DirEntry;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 use chrono::prelude::*;
@@ -21,6 +23,7 @@ enum ItemType {
 /// ### ItemFS
 /// Represents a file system item (file or directory) as it
 /// will be sent in output to *win-locate* program.
+// TODO: add reference (parent to son or vice-versa)
 struct ItemFS {
     abs_path: String,
     name: String,
@@ -75,6 +78,10 @@ impl ItemFS {
         );
 
         Ok(item)
+    }
+
+    fn get_size(&self) -> u128 {
+        self.size
     }
 }
 
@@ -132,12 +139,13 @@ fn convert_sys_time(t: SystemTime) -> String {
     _convert_sys_time(t, None)
 }
 
-fn index_rayon(path: &Path) -> Result<Vec<String>, String> {
+fn index_rayon(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Result<Vec<ItemFS>, String> {
     if !path.exists()
         || !fs::metadata(path).map_err(|e| e.to_string())?.is_dir() {
         return Err("Invalid path".to_string());
     }
 
+    // TODO: how can I fix os error 5? (access denied)
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(e) => return Err(format!("Failed to read directory: {e}")),
@@ -148,25 +156,37 @@ fn index_rayon(path: &Path) -> Result<Vec<String>, String> {
         .par_iter()
         .map(|entry| {
             if entry.path().is_dir() {
-                let item = ItemFS::from_dir_entry(&entry);
-                //println!("{}", item.expect("Error getting item."));
+                let item = ItemFS::from_dir_entry(&entry).expect("");
 
-                match index_rayon(&entry.path()) {
-                    Ok(sub_entries) => Ok::<Vec<String>, String>(sub_entries),
-                    Err(_e) => {
-                        // TODO: how can I fix os error 5? (access denied)
-                        Ok(Vec::new())
-                    },
-                }
+                // Scan subdirectory
+                let sub_entries = index_rayon(
+                    &entry.path(),
+                    Arc::clone(&dir_sizes)
+                ).expect("");
+
+                // Add item to output
+                Ok::<Vec<ItemFS>, String>(
+                    vec![item]
+                        .into_iter()
+                        .chain(sub_entries.into_iter())
+                        .collect()
+                )
             } else {
-                let item = ItemFS::from_dir_entry(&entry);
-                //println!("{}", item.expect("Error getting item."));
+                let item = ItemFS::from_dir_entry(&entry).expect("");
 
-                Ok(vec![entry.path().to_string_lossy().into_owned()])
+                // Update parent dir size
+                let parent_str = entry.path().parent().unwrap().to_string_lossy().to_string();
+                let parent_path = format_path(PathBuf::from(parent_str));
+                let item_size = item.get_size();
+                let mut dir_sizes = dir_sizes.lock().unwrap();
+                *dir_sizes.entry(parent_path).or_insert(0) += item_size;
+
+                Ok(vec![item])
             }
         })
         .collect();
 
+    // TODO: persist items to sqlite (check existence)
     let mut index = Vec::new();
     for entry in indexed_entries? {
         index.extend(entry);
@@ -177,11 +197,22 @@ fn index_rayon(path: &Path) -> Result<Vec<String>, String> {
 
 fn main() {
     let start = Instant::now();
+    // Create a safe hashmap that can be
+    // shared during file system scanning
+    let dir_sizes = Arc::new(
+            Mutex::new(HashMap::new())
+    );
 
-    match index_rayon(Path::new("C:/Users/anton")) {
+    match index_rayon(Path::new("C:/Users/anton/Desktop/test"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
-            for _e in result {
-                // println!("{e}")
+            /*
+            let dir_sizes = dir_sizes.lock().unwrap();
+            for (path, size) in dir_sizes.iter() {
+                println!("Path: {}, Size: {} bytes", path, size);
+            }
+            */
+            for e in result {
+                println!("{e}")
             }
         }
         Err(e) => { println!("{e}")}
