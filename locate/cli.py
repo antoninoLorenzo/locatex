@@ -3,6 +3,7 @@ Author: @antoninoLorenzo https://github.com/antoninoLorenzo
 Version: 0.0
 """
 import sys
+import sqlite3
 from argparse import Action, ArgumentParser
 from pathlib import Path
 
@@ -21,9 +22,29 @@ def update_index():
     """Launches Rust scanner"""
 
 
+# noinspection SqlNoDataSourceInspection
 def setup_index():
     """Creates database and updates file system index"""
-    # ...
+    with sqlite3.connect(INDEX_PATH) as connection:
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON")
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS fs (
+                AbsPath TEXT PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Size BIGINT NOT NULL,
+                LastEdit DATE NOT NULL,
+                Type TEXT CHECK ( Type in ('file', 'directory') )
+            );
+            """
+        )
+
+        cursor.execute("CREATE INDEX idx_name ON fs(Name)")
+
+        connection.commit()
+
     update_index()
 
 
@@ -73,7 +94,7 @@ def main():
     if not INDEX_PATH.exists():
         if not INDEX_PATH.parent.exists():
             INDEX_PATH.parent.mkdir()
-        setup_parser()
+        setup_index()
         updated = True
 
     if args.update == 1 and not updated:
