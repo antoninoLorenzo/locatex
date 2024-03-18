@@ -4,9 +4,12 @@
 /// Version: 0.0
 
 use std::fs;
+use std::env;
 use std::fmt;
+use std::process;
 use std::fs::DirEntry;
 use std::collections::HashMap;
+use std::ops::Index;
 use std::sync::{Arc, Mutex};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
@@ -159,6 +162,7 @@ fn index_rayon(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Res
                 let item = ItemFS::from_dir_entry(&entry).expect("");
 
                 // Scan subdirectory
+                // TODO: fix os error 5
                 let sub_entries = index_rayon(
                     &entry.path(),
                     Arc::clone(&dir_sizes)
@@ -186,7 +190,6 @@ fn index_rayon(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Res
         })
         .collect();
 
-    // TODO: persist items to sqlite (check existence)
     let mut index = Vec::new();
     for entry in indexed_entries? {
         index.extend(entry);
@@ -195,25 +198,60 @@ fn index_rayon(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Res
     Ok(index)
 }
 
+/// Validates the path to *index.db* given in input
+fn get_index_path(args: Vec<String>) -> String {
+    if args.len() != 2 {
+        println!("Must provide index path.");
+        process::exit(1);
+    }
+
+    let path_str = Path::new(args.index(1))
+        .to_path_buf()
+        .to_string_lossy()
+        .to_string();
+
+    let index_path = Path::new(path_str.as_str());
+
+    if !index_path.exists() {
+        println!("Invalid index path do not exists.");
+        process::exit(1);
+    }
+
+    if index_path.extension().expect("") != "db" {
+        println!("Invalid index path.");
+        process::exit(1);
+    }
+
+    path_str
+}
+
 fn main() {
-    let start = Instant::now();
+    // Get index path
+    let args: Vec<String> = env::args().collect();
+    let index_path = get_index_path(args);
+    println!("{}", index_path);
+
     // Create a safe hashmap that can be
     // shared during file system scanning
     let dir_sizes = Arc::new(
             Mutex::new(HashMap::new())
     );
 
-    match index_rayon(Path::new("C:/Users/anton/Desktop/test"), Arc::clone(&dir_sizes)) {
+    let start = Instant::now();
+    match index_rayon(Path::new("C:/Users/anton/Desktop"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
-            /*
+
             let dir_sizes = dir_sizes.lock().unwrap();
+            /*
             for (path, size) in dir_sizes.iter() {
                 println!("Path: {}, Size: {} bytes", path, size);
             }
-            */
+
             for e in result {
                 println!("{e}")
             }
+            */
+            // TODO: persist items to sqlite (check existence)
         }
         Err(e) => { println!("{e}")}
     }
