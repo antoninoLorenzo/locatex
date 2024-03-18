@@ -142,7 +142,8 @@ fn convert_sys_time(t: SystemTime) -> String {
     _convert_sys_time(t, None)
 }
 
-fn index_rayon(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Result<Vec<ItemFS>, String> {
+///
+fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Result<Vec<ItemFS>, String> {
     if !path.exists()
         || !fs::metadata(path).map_err(|e| e.to_string())?.is_dir() {
         return Err("Invalid path".to_string());
@@ -163,7 +164,7 @@ fn index_rayon(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Res
 
                 // Scan subdirectory
                 // TODO: fix os error 5
-                let sub_entries = index_rayon(
+                let sub_entries = scan_file_system(
                     &entry.path(),
                     Arc::clone(&dir_sizes)
                 ).expect("");
@@ -225,6 +226,25 @@ fn get_index_path(args: Vec<String>) -> String {
     path_str
 }
 
+/// Updates database at index path
+fn update_index(items: Vec<ItemFS>) {
+    // Rather than dropping the entire database and rebuilding it,
+    // for an efficient update the following approach is taken:
+    // 1. Get a Vec<ItemFS> from database
+    // 2. Verify the following conditions:
+    //
+    // AbsPath(database) exists && AbsPath(items) exists
+    //      2.1 drop from items vector (item already indexed)
+    //
+    // AbsPath(database) not exists && AbsPath(items) exists
+    //      2.2 keep item (new item in the index path)
+    //
+    // AbsPath(database) exists && AbsPath(items) not exists
+    //      2.3 the item was deleted from file system, drop from database
+    //
+    // 3. Add last items to database
+}
+
 fn main() {
     // Get index path
     let args: Vec<String> = env::args().collect();
@@ -238,7 +258,7 @@ fn main() {
     );
 
     let start = Instant::now();
-    match index_rayon(Path::new("C:/Users/anton/Desktop"), Arc::clone(&dir_sizes)) {
+    match scan_file_system(Path::new("C:/Users/anton/Desktop"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
 
             let dir_sizes = dir_sizes.lock().unwrap();
