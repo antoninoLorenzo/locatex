@@ -200,9 +200,9 @@ fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -
 }
 
 /// Validates the path to *index.db* given in input
-fn get_index_path(args: Vec<String>) -> String {
+pub fn get_index_path(args: Vec<String>) -> Result<String, &'static str> {
     if args.len() != 2 {
-        println!("Must provide index path.");
+        return Err("Must provide index path.");
         process::exit(1);
     }
 
@@ -214,16 +214,16 @@ fn get_index_path(args: Vec<String>) -> String {
     let index_path = Path::new(path_str.as_str());
 
     if !index_path.exists() {
-        println!("Invalid index path do not exists.");
+        return Err("Invalid index path, doesn't exists.");
         process::exit(1);
     }
 
     if index_path.extension().expect("") != "db" {
-        println!("Invalid index path.");
+        return Err("Invalid index path.");
         process::exit(1);
     }
 
-    path_str
+    Ok(path_str)
 }
 
 /// Updates database at index path
@@ -248,7 +248,10 @@ fn update_index(items: Vec<ItemFS>) {
 fn main() {
     // Get index path
     let args: Vec<String> = env::args().collect();
-    let index_path = get_index_path(args);
+    let index_path = match get_index_path(args) {
+        Ok(result) => result,
+        Err(out) => process::exit(1)
+    };
     println!("{}", index_path);
 
     // Create a safe hashmap that can be
@@ -258,7 +261,7 @@ fn main() {
     );
 
     let start = Instant::now();
-    match scan_file_system(Path::new("C:/Users/anton/Desktop"), Arc::clone(&dir_sizes)) {
+    match scan_file_system(Path::new("C:/Users/anton/Desktop/test"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
 
             let dir_sizes = dir_sizes.lock().unwrap();
