@@ -1,3 +1,5 @@
+mod tests;
+
 /// Scan the entire file system to update win-locate database.
 ///
 /// Author: @antoninoLorenzo: https://github.com/antoninoLorenzo
@@ -261,19 +263,19 @@ fn main() {
     );
 
     let start = Instant::now();
-    match scan_file_system(Path::new("C:/Users/anton/Desktop/test"), Arc::clone(&dir_sizes)) {
+    match scan_file_system(Path::new("C:/Users/anton/Desktop"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
 
             let dir_sizes = dir_sizes.lock().unwrap();
-            /*
+
             for (path, size) in dir_sizes.iter() {
                 println!("Path: {}, Size: {} bytes", path, size);
             }
-
+/*
             for e in result {
                 println!("{e}")
             }
-            */
+*/
             // TODO: persist items to sqlite (check existence)
         }
         Err(e) => { println!("{e}")}
