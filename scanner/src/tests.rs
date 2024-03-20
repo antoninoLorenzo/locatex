@@ -6,6 +6,10 @@ use super::{
     update_index
 };
 
+
+// ------------------------------ get_index_path tests
+
+
 #[test]
 fn get_index_path_empty() {
     let args = vec![];
@@ -30,5 +34,35 @@ fn get_index_path_invalid_db() {
 
 #[test]
 fn get_index_path_correct() {
+
+}
+
+// ------------------------------ ItemType tests
+
+
+// ------------------------------ ItemFS tests
+
+
+
+// ------------------------------ scan_file_system tests
+
+#[test]
+fn not_existing_target_directory() {
+
+}
+#[test]
+fn empty_target_directory() {
+
+}
+#[test]
+fn valid_target_directory() {
+
+}
+#[test]
+fn permission_denied() {
+
+}
+#[test]
+fn performance_test() {
 
 }

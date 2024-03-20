@@ -324,7 +324,7 @@ fn main() {
 
     println!("------------------------ START SCANNING ------------------------");
     let start = Instant::now();
-    match scan_file_system(Path::new("C:/Users/anton/Desktop/test"), Arc::clone(&dir_sizes)) {
+    match scan_file_system(Path::new("C:/Users/anton/Desktop/"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
             println!("Scanned in {}s\n", start.elapsed().as_secs());
 
