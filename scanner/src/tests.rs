@@ -1,4 +1,10 @@
-use super::get_index_path;
+use super::{
+    ItemType,
+    ItemFS,
+    get_index_path,
+    scan_file_system,
+    update_index
+};
 
 #[test]
 fn get_index_path_empty() {
