@@ -6,8 +6,13 @@ import sys
 import sqlite3
 from argparse import Action, ArgumentParser
 from pathlib import Path
+from collections import namedtuple
 
 INDEX_PATH = Path(Path('~').expanduser() / '.locatex' / 'index.db')
+ItemFS = namedtuple(
+    'ItemFS',
+    ['abs_path', 'name', 'size', 'last_update', 'type']
+)
 
 
 class ValidateRegex(Action):
@@ -27,7 +32,6 @@ def setup_index():
     """Creates database and updates file system index"""
     with sqlite3.connect(INDEX_PATH) as connection:
         cursor = connection.cursor()
-        cursor.execute("PRAGMA foreign_keys = ON")
 
         cursor.execute(
             """
@@ -58,12 +62,6 @@ def setup_parser() -> ArgumentParser:
     )
 
     _parser.add_argument(
-        '--regex',
-        default=None,
-        help='Finds target with regular expression.'
-    )
-
-    _parser.add_argument(
         '--update',
         choices=(0, 1),
         default=0,
@@ -78,6 +76,18 @@ def setup_parser() -> ArgumentParser:
     )
 
     return _parser
+
+
+def search(target: str):
+    """Search for a file or directory name in the filesystem"""
+    with sqlite3.Connection(INDEX_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM fs WHERE Name LIKE (?)", (f'%{target}%',))
+        result = cursor.fetchall()
+        if len(result) == 0:
+            return None
+        else:
+            return [ItemFS(*r) for r in result]
 
 
 def main():
@@ -101,6 +111,13 @@ def main():
         update_index()
 
     #  Run
+    target_name = args.target
+    output = search(target_name)
+    if output is not None:
+        for o in output:
+            print(f'{o.type}: {o.abs_path}\t {o.size} bytes - {o.last_update}')
+    else:
+        print('No results found.')
 
 
 if __name__ == '__main__':
