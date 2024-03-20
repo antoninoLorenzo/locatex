@@ -8,6 +8,13 @@ from argparse import Action, ArgumentParser
 from pathlib import Path
 from collections import namedtuple
 
+try:
+    from rich.console import Console
+    from rich.table import Table
+except ImportError as err:
+    print(f'Failed import: {err}')
+    sys.exit(1)
+
 INDEX_PATH = Path(Path('~').expanduser() / '.locatex' / 'index.db')
 ItemFS = namedtuple(
     'ItemFS',
@@ -114,8 +121,22 @@ def main():
     target_name = args.target
     output = search(target_name)
     if output is not None:
+        console = Console()
+        table = Table(title=f'Results for {target_name}')
+        table.add_column('Type')
+        table.add_column('Path')
+        table.add_column('Size (bytes)')
+        table.add_column('Last Update')
+
         for o in output:
-            print(f'{o.type}: {o.abs_path}\t {o.size} bytes - {o.last_update}')
+            table.add_row(
+                o.type,
+                o.abs_path,
+                str(o.size),
+                o.last_update
+            )
+
+        console.print(table)
     else:
         print('No results found.')
 
