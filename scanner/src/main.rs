@@ -10,17 +10,20 @@ use std::env;
 use std::fmt;
 use std::process;
 use std::fs::DirEntry;
+use std::str::FromStr;
 use std::collections::HashMap;
+use std::fmt::{Formatter, write};
 use std::ops::Index;
 use std::sync::{Arc, Mutex};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 use chrono::prelude::*;
 use rayon::prelude::*;
+use rusqlite::*;
 
 
 /// Used by ItemFS
-enum ItemType {
+pub enum ItemType {
     DIR,
     FILE
 }
@@ -29,7 +32,7 @@ enum ItemType {
 /// Represents a file system item (file or directory) as it
 /// will be sent in output to *win-locate* program.
 // TODO: add reference (parent to son or vice-versa)
-struct ItemFS {
+pub struct ItemFS {
     abs_path: String,
     name: String,
     f_type: ItemType,
@@ -91,10 +94,10 @@ impl ItemFS {
 }
 
 impl fmt::Display for ItemType {
-    fn fmt(&self, f_type: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match *self {
-            ItemType::DIR => write!(f_type, "DIR"),
-            ItemType::FILE => write!(f_type, "FILE"),
+            ItemType::DIR => write!(f, "directory"),
+            ItemType::FILE => write!(f, "file")
         }
     }
 }
@@ -104,7 +107,7 @@ impl fmt::Display for ItemFS {
         write!(
             item,
             "{}: {}\n{}: {} - {} bytes",
-            self.f_type , self.abs_path, self.name, self.last_edit, self.size
+            self.f_type.to_string() , self.abs_path, self.name, self.last_edit, self.size
         )
     }
 }
@@ -145,7 +148,7 @@ fn convert_sys_time(t: SystemTime) -> String {
 }
 
 ///
-fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Result<Vec<ItemFS>, String> {
+pub fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Result<Vec<ItemFS>, String> {
     if !path.exists()
         || !fs::metadata(path).map_err(|e| e.to_string())?.is_dir() {
         return Err("Invalid path".to_string());
@@ -205,7 +208,6 @@ fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -
 pub fn get_index_path(args: Vec<String>) -> Result<String, &'static str> {
     if args.len() != 2 {
         return Err("Must provide index path.");
-        process::exit(1);
     }
 
     let path_str = Path::new(args.index(1))
@@ -217,19 +219,17 @@ pub fn get_index_path(args: Vec<String>) -> Result<String, &'static str> {
 
     if !index_path.exists() {
         return Err("Invalid index path, doesn't exists.");
-        process::exit(1);
     }
 
     if index_path.extension().expect("") != "db" {
         return Err("Invalid index path.");
-        process::exit(1);
     }
 
     Ok(path_str)
 }
 
 /// Updates database at index path
-fn update_index(items: Vec<ItemFS>) {
+pub fn update_index(items: Vec<ItemFS>, db_path: &String) -> Result<(), String> {
     // Rather than dropping the entire database and rebuilding it,
     // for an efficient update the following approach is taken:
     // 1. Get a Vec<ItemFS> from database
@@ -237,6 +237,7 @@ fn update_index(items: Vec<ItemFS>) {
     //
     // AbsPath(database) exists && AbsPath(items) exists
     //      2.1 drop from items vector (item already indexed)
+    //      this will raise UNIQUE constraint failed: fs.AbsPath
     //
     // AbsPath(database) not exists && AbsPath(items) exists
     //      2.2 keep item (new item in the index path)
@@ -245,6 +246,62 @@ fn update_index(items: Vec<ItemFS>) {
     //      2.3 the item was deleted from file system, drop from database
     //
     // 3. Add last items to database
+    
+    let mut conn: Connection = match Connection::open(db_path) {
+        Ok(connection) => { connection },
+        Err(..) => {
+            return Err("Failed acquiring connection.".to_string())
+        }
+    };
+
+    // This is basically a try catch
+    let result = (|| {
+        let tx: Transaction = match conn.transaction() {
+            Ok(transaction) => { transaction },
+            Err(..) => {
+                return Err("Failed acquiring transaction.".to_string())
+            }
+        };
+
+        // ...
+
+        for item in items {
+            match tx.execute(
+                "INSERT INTO fs (AbsPath, Name, Size, LastEdit, Type) \
+            VALUES (?, ?, ?, ?, ?)",
+                &[
+                    &item.abs_path,
+                    &item.name,
+                    &item.size.to_string(),
+                    &item.last_edit,
+                    &item.f_type.to_string()
+                ]
+            ) {
+                Ok(..) => {},
+                Err(err) => {
+                    return Err(err.to_string())
+                }
+            };
+        }
+
+        match tx.commit() {
+            Ok(..) => Ok(()),
+            Err(err) => {
+                return Err(err.to_string())
+            }
+        }
+    })();
+
+    match result {
+        Ok(..) => {},
+        Err(err) => {
+            conn.close().expect("PANIC: can't close connection");
+            return Err(err.to_string())
+        }
+    }
+
+    conn.close().expect("PANIC: can't close connection");
+    Ok(())
 }
 
 fn main() {
@@ -252,9 +309,12 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let index_path = match get_index_path(args) {
         Ok(result) => result,
-        Err(out) => process::exit(1)
+        Err(out) => {
+            println!("Error: {out}");
+            process::exit(1)
+        }
     };
-    println!("{}", index_path);
+    println!("[i] Index Path: {}\n", index_path);
 
     // Create a safe hashmap that can be
     // shared during file system scanning
@@ -262,24 +322,37 @@ fn main() {
             Mutex::new(HashMap::new())
     );
 
+    println!("------------------------ START SCANNING ------------------------");
     let start = Instant::now();
-    match scan_file_system(Path::new("C:/Users/anton/Desktop"), Arc::clone(&dir_sizes)) {
+    match scan_file_system(Path::new("C:/Users/anton/Desktop/test"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
+            println!("Scanned in {}s\n", start.elapsed().as_secs());
 
-            let dir_sizes = dir_sizes.lock().unwrap();
-
+            let _dir_sizes = dir_sizes.lock().unwrap();
+            /*
             for (path, size) in dir_sizes.iter() {
                 println!("Path: {}, Size: {} bytes", path, size);
             }
-/*
+
             for e in result {
                 println!("{e}")
             }
-*/
+            */
+            println!("---------------------------- PERSIST ---------------------------");
             // TODO: persist items to sqlite (check existence)
+            let start_commit = Instant::now();
+
+            match update_index(result, &index_path) {
+                Ok(..) => {
+                    println!("Commit in {}s\n", start_commit.elapsed().as_secs());
+                },
+                Err(e) => {
+                    println!("Error: {e}");
+                }
+            };
+
         }
         Err(e) => { println!("{e}")}
     }
 
-    println!("Done in {}", start.elapsed().as_secs());
 }

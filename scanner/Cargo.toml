@@ -7,3 +7,9 @@ edition = "2021"
 [dependencies]
 rayon = "1.8"
 chrono = "0.4"
+
+[dependencies.rusqlite]
+version = "0.31.0"
+# compile SQLite from source code and bundle it in scanner
+# => doesn't require searching for it in target OS file system
+features = ["bundled"]
