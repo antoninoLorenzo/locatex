@@ -154,7 +154,6 @@ pub fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>
         return Err("Invalid path".to_string());
     }
 
-    // TODO: how can I fix os error 5? (access denied)
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(e) => return Err(format!("Failed to read directory: {e}")),
@@ -168,7 +167,9 @@ pub fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>
                 let item = ItemFS::from_dir_entry(&entry).expect("");
 
                 // Scan subdirectory
-                // TODO: fix os error 5
+                // TODO:
+                //  either grant that scan_file_system can read directories or
+                //  implement fault tolerance to just not consider those directories
                 let sub_entries = scan_file_system(
                     &entry.path(),
                     Arc::clone(&dir_sizes)
@@ -324,11 +325,13 @@ fn main() {
 
     println!("------------------------ START SCANNING ------------------------");
     let start = Instant::now();
+    // TODO: replace path with machine independent
     match scan_file_system(Path::new("C:/Users/anton/Desktop/"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
             println!("Scanned in {}s\n", start.elapsed().as_secs());
 
             let _dir_sizes = dir_sizes.lock().unwrap();
+            // TODO: merge dir_sizes with Vec<ItemFS>
             /*
             for (path, size) in dir_sizes.iter() {
                 println!("Path: {}, Size: {} bytes", path, size);
@@ -339,7 +342,6 @@ fn main() {
             }
             */
             println!("---------------------------- PERSIST ---------------------------");
-            // TODO: persist items to sqlite (check existence)
             let start_commit = Instant::now();
 
             match update_index(result, &index_path) {
