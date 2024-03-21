@@ -14,5 +14,5 @@ jobs:
       -
         name: "Test Scanner"
         run: |
-          ls
+          cd scanner
           cargo test
