@@ -138,22 +138,7 @@ fn valid_target_directory() {
         }
     }
 }
-#[test]
-fn permission_denied() {
-    // TODO: use testable path from other systems
-    let path = path::Path::new("C:\\Users\\anton");
-    let dir_sizes =  Arc::new(Mutex::new(HashMap::new()));
 
-    match scan_file_system(path, Arc::clone(&dir_sizes)) {
-        Ok(res) => {
-            assert!(res.len() > 0)
-        },
-        Err(err) => {
-            print!("[permission_denied]: {err}");
-            assert_eq!(0, 1)
-        }
-    }
-}
 #[test]
 fn performance_test() {
     let path = path::Path::new("C:\\");

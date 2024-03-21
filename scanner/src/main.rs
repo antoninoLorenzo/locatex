@@ -170,18 +170,20 @@ pub fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>
                 // TODO:
                 //  either grant that scan_file_system can read directories or
                 //  implement fault tolerance to just not consider those directories
-                let sub_entries = scan_file_system(
+                if let Ok(res) = scan_file_system(
                     &entry.path(),
-                    Arc::clone(&dir_sizes)
-                ).expect("");
+                    Arc::clone(&dir_sizes)) {
 
-                // Add item to output
-                Ok::<Vec<ItemFS>, String>(
-                    vec![item]
-                        .into_iter()
-                        .chain(sub_entries.into_iter())
-                        .collect()
-                )
+                    // Add item to output
+                    return  Ok::<Vec<ItemFS>, String>(
+                        vec![item]
+                            .into_iter()
+                            .chain(res.into_iter())
+                            .collect()
+                    )
+                } else {
+                    Ok(vec![])
+                }
             } else {
                 let item = ItemFS::from_dir_entry(&entry).expect("");
 
@@ -326,7 +328,7 @@ fn main() {
     println!("------------------------ START SCANNING ------------------------");
     let start = Instant::now();
     // TODO: replace path with machine independent
-    match scan_file_system(Path::new("C:/Users/anton/Desktop/"), Arc::clone(&dir_sizes)) {
+    match scan_file_system(Path::new("C:/"), Arc::clone(&dir_sizes)) {
         Ok(result) => {
             println!("Scanned in {}s\n", start.elapsed().as_secs());
 
