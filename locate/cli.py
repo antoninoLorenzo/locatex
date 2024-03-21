@@ -4,6 +4,7 @@ Version: 0.0
 """
 import sys
 import sqlite3
+import time
 from argparse import Action, ArgumentParser
 from pathlib import Path
 from collections import namedtuple
@@ -89,12 +90,19 @@ def search(target: str):
     """Search for a file or directory name in the filesystem"""
     with sqlite3.Connection(INDEX_PATH) as conn:
         cursor = conn.cursor()
+        exec_start = time.time()
         cursor.execute("SELECT * FROM fs WHERE Name LIKE (?)", (f'%{target}%',))
         result = cursor.fetchall()
+        exec_end = time.time()
+        print(f'cursor.execute: {(exec_end-exec_start):.2f}s')
         if len(result) == 0:
             return None
         else:
-            return [ItemFS(*r) for r in result]
+            res_start = time.time()
+            res = [ItemFS(*r) for r in result]
+            res_end = time.time()
+            print(f'result conversion: {(res_end-res_start):.2f}s')
+            return res
 
 
 def main():
@@ -117,10 +125,13 @@ def main():
     if args.update == 1 and not updated:
         update_index()
 
-    #  Run
     target_name = args.target
+
+    #  Run
     output = search(target_name)
+    start_print = time.time()
     if output is not None:
+        # Create table
         console = Console()
         table = Table(title=f'Results for {target_name}')
         table.add_column('Type')
@@ -128,6 +139,7 @@ def main():
         table.add_column('Size (bytes)')
         table.add_column('Last Update')
 
+        # TODO: fix bottleneck on print
         for o in output:
             table.add_row(
                 o.type,
@@ -139,6 +151,8 @@ def main():
         console.print(table)
     else:
         print('No results found.')
+    end_print = time.time()
+    print(f'{(end_print-start_print):.2f}s')
 
 
 if __name__ == '__main__':
