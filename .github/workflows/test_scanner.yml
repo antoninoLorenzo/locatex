@@ -1,0 +1,18 @@
+on: [push]
+
+name: test_scanner
+
+jobs:
+  build_and_test:
+    name: locatex-scanner
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      -
+        name: "Test Scanner"
+        run: |
+          ls
+          cargo test
