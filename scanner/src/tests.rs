@@ -33,14 +33,36 @@ fn get_index_path_not_exists() {
 }
 
 #[test]
-fn get_index_path_invalid_db() {
+fn get_index_path_not_db() {
+    fs::create_dir("./test_dir")
+        .expect("[get_index_path_not_db] Failed creating directory");
+    let mut args_dir: Vec<String> = Vec::new();
+    args_dir.push("./test_dir".to_string());
 
+    let result_dir = get_index_path(args_dir);
+    assert!(result_dir.is_err());
+
+    // Test without extension to see if it fails correctly
+    let _file = fs::File::create("./test_dir/not_valid");
+    let mut args_file: Vec<String> = Vec::new();
+    args_file.push("./test_dir/not_valid".to_string());
+
+    let result_file = get_index_path(args_file);
+
+    fs::remove_file("./test_dir/not_valid")
+        .expect("[get_index_path_not_db] Failed cleaning file.");
+    fs::remove_dir("./test_dir")
+        .expect("[get_index_path_not_db] Failed cleaning directory.");
+
+    assert!(result_file.is_err());
 }
 
+/*
 #[test]
 fn get_index_path_correct() {
 
 }
+*/
 
 // ItemType tests
 
@@ -59,6 +81,21 @@ fn not_existing_target_directory() {
     let result = scan_file_system(path, Arc::clone(&dir_sizes));
     assert!(result.is_err())
 }
+
+#[test]
+fn pointing_to_file() {
+    let _f = fs::File::create("./test_file");
+    let path = path::Path::new("./test_file");
+    let dir_sizes = Arc::new(Mutex::new(HashMap::new()));
+
+    let result = scan_file_system(path, Arc::clone(&dir_sizes));
+
+    fs::remove_file("./test_file")
+        .expect("[pointing_to_file] Failed cleaning.");
+
+    assert!(result.is_err())
+}
+
 #[test]
 fn empty_target_directory() {
     fs::create_dir("./test_dir")
