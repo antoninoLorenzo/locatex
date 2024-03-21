@@ -2,19 +2,11 @@
 Author: @antoninoLorenzo https://github.com/antoninoLorenzo
 Version: 0.0
 """
-import sys
 import sqlite3
-import time
+import sys
 from argparse import Action, ArgumentParser
-from pathlib import Path
 from collections import namedtuple
-
-try:
-    from rich.console import Console
-    from rich.table import Table
-except ImportError as err:
-    print(f'Failed import: {err}')
-    sys.exit(1)
+from pathlib import Path
 
 INDEX_PATH = Path(Path('~').expanduser() / '.locatex' / 'index.db')
 ItemFS = namedtuple(
@@ -33,9 +25,10 @@ class ValidateRegex(Action):
 
 def update_index():
     """Launches Rust scanner"""
+    # TODO: integrate
 
 
-# noinspection SqlNoDataSourceInspection
+# noinspection SqlNoDataSourceInspection,SqlResolve
 def setup_index():
     """Creates database and updates file system index"""
     with sqlite3.connect(INDEX_PATH) as connection:
@@ -53,6 +46,7 @@ def setup_index():
             """
         )
 
+        # doesn't really make a difference
         cursor.execute("CREATE INDEX idx_name ON fs(Name)")
 
         connection.commit()
@@ -86,23 +80,20 @@ def setup_parser() -> ArgumentParser:
     return _parser
 
 
+# noinspection SqlNoDataSourceInspection,SqlResolve
 def search(target: str):
     """Search for a file or directory name in the filesystem"""
     with sqlite3.Connection(INDEX_PATH) as conn:
         cursor = conn.cursor()
-        exec_start = time.time()
-        cursor.execute("SELECT * FROM fs WHERE Name LIKE (?)", (f'%{target}%',))
+        cursor.execute(
+            "SELECT * FROM fs WHERE Name LIKE (?)",
+            (f'%{target}%',)
+        )
+
         result = cursor.fetchall()
-        exec_end = time.time()
-        print(f'cursor.execute: {(exec_end-exec_start):.2f}s')
         if len(result) == 0:
             return None
-        else:
-            res_start = time.time()
-            res = [ItemFS(*r) for r in result]
-            res_end = time.time()
-            print(f'result conversion: {(res_end-res_start):.2f}s')
-            return res
+        return [ItemFS(*r) for r in result]
 
 
 def main():
@@ -125,34 +116,22 @@ def main():
     if args.update == 1 and not updated:
         update_index()
 
-    target_name = args.target
-
     #  Run
+    target_name = args.target
     output = search(target_name)
-    start_print = time.time()
     if output is not None:
         # Create table
-        console = Console()
-        table = Table(title=f'Results for {target_name}')
-        table.add_column('Type')
-        table.add_column('Path')
-        table.add_column('Size (bytes)')
-        table.add_column('Last Update')
+        for i, o in enumerate(output):
+            # dumb pagination
+            if i != 0 and (i % 100) == 0:
+                check = input("Continue? y/n: ")
+                if not check.lower() == 'y':
+                    break
 
-        # TODO: fix bottleneck on print
-        for o in output:
-            table.add_row(
-                o.type,
-                o.abs_path,
-                str(o.size),
-                o.last_update
-            )
-
-        console.print(table)
+            # TODO: make inguardable print
+            print(f'{o.type}: {o.abs_path}')
     else:
         print('No results found.')
-    end_print = time.time()
-    print(f'{(end_print-start_print):.2f}s')
 
 
 if __name__ == '__main__':
