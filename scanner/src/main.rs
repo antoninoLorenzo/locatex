@@ -12,7 +12,7 @@ use std::process;
 use std::fs::DirEntry;
 use std::str::FromStr;
 use std::collections::HashMap;
-use std::fmt::{Formatter, write};
+use std::fmt::{Formatter};
 use std::ops::Index;
 use std::sync::{Arc, Mutex};
 use std::path::{Path, PathBuf};
@@ -147,7 +147,21 @@ fn convert_sys_time(t: SystemTime) -> String {
     _convert_sys_time(t, None)
 }
 
+/// Starts from provided *path* and performs recursive scan
 ///
+/// **Parameters:**
+///
+/// [path](Path)  : start path
+///
+/// [dir_sizes]() : dir sizes is basically a hashmap {abs_path: size} used
+///                 because with Metadata::len the directory size is always 0 (...)
+///
+///                 std::sync::Arc is used to provide shared ownership
+///                 std::sync::Mutex is used to perform updates with no race conditions
+///
+/// **Return**
+///
+/// Returns a vector of ItemFS or the error string
 pub fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>>) -> Result<Vec<ItemFS>, String> {
     if !path.exists()
         || !fs::metadata(path).map_err(|e| e.to_string())?.is_dir() {
@@ -167,9 +181,6 @@ pub fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>
                 let item = ItemFS::from_dir_entry(&entry).expect("");
 
                 // Scan subdirectory
-                // TODO:
-                //  either grant that scan_file_system can read directories or
-                //  implement fault tolerance to just not consider those directories
                 if let Ok(res) = scan_file_system(
                     &entry.path(),
                     Arc::clone(&dir_sizes)) {
@@ -182,7 +193,7 @@ pub fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>
                             .collect()
                     )
                 } else {
-                    Ok(vec![])
+                    Ok(vec![]) // just return nothing
                 }
             } else {
                 let item = ItemFS::from_dir_entry(&entry).expect("");
@@ -207,48 +218,12 @@ pub fn scan_file_system(path: &Path, dir_sizes: Arc<Mutex<HashMap<String, u128>>
     Ok(index)
 }
 
-/// Validates the path to *index.db* given in input
-pub fn get_index_path(args: Vec<String>) -> Result<String, &'static str> {
-    if args.len() != 2 {
-        return Err("Must provide index path.");
-    }
-
-    let path_str = Path::new(args.index(1))
-        .to_path_buf()
-        .to_string_lossy()
-        .to_string();
-
-    let index_path = Path::new(path_str.as_str());
-
-    if !index_path.exists() {
-        return Err("Invalid index path, doesn't exists.");
-    }
-
-    if index_path.extension().expect("") != "db" {
-        return Err("Invalid index path.");
-    }
-
-    Ok(path_str)
-}
 
 /// Updates database at index path
 pub fn update_index(items: Vec<ItemFS>, db_path: &String) -> Result<(), String> {
-    // Rather than dropping the entire database and rebuilding it,
-    // for an efficient update the following approach is taken:
-    // 1. Get a Vec<ItemFS> from database
-    // 2. Verify the following conditions:
-    //
-    // AbsPath(database) exists && AbsPath(items) exists
-    //      2.1 drop from items vector (item already indexed)
-    //      this will raise UNIQUE constraint failed: fs.AbsPath
-    //
-    // AbsPath(database) not exists && AbsPath(items) exists
-    //      2.2 keep item (new item in the index path)
-    //
-    // AbsPath(database) exists && AbsPath(items) not exists
-    //      2.3 the item was deleted from file system, drop from database
-    //
-    // 3. Add last items to database
+    // TODO
+    //  implement logic to exclude existing items
+    //  implement logic to remove deleted items
     
     let mut conn: Connection = match Connection::open(db_path) {
         Ok(connection) => { connection },
@@ -305,6 +280,34 @@ pub fn update_index(items: Vec<ItemFS>, db_path: &String) -> Result<(), String> 
 
     conn.close().expect("PANIC: can't close connection");
     Ok(())
+}
+
+/// Validates the path to *index.db* given in input
+pub fn get_index_path(args: Vec<String>) -> Result<String, &'static str> {
+    if args.len() != 2 {
+        return Err("Must provide index path.");
+    }
+
+    let path_str = Path::new(args.index(1))
+        .to_path_buf()
+        .to_string_lossy()
+        .to_string();
+
+    let index_path = Path::new(path_str.as_str());
+
+    if !index_path.exists() {
+        return Err("Invalid index path, doesn't exists.");
+    }
+
+    if index_path.extension().expect("") != "db" {
+        return Err("Invalid index path.");
+    }
+
+    Ok(path_str)
+}
+
+fn get_exclusions() {
+    // TODO: parse a config file without adding dependencies
 }
 
 fn main() {
