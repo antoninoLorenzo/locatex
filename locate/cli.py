@@ -15,14 +15,6 @@ ItemFS = namedtuple(
 )
 
 
-class ValidateRegex(Action):
-    """Validates user input regex"""
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        # TODO: parse regex
-        setattr(namespace, self.dest, values)
-
-
 def update_index():
     """Launches Rust scanner"""
     # TODO: integrate
@@ -71,10 +63,10 @@ def setup_parser() -> ArgumentParser:
     )
 
     _parser.add_argument(
-        '--insensitive',
-        choices=(0, 1),
-        default=0,
-        help='Finds target with case insensitive option.'
+        '--pagination',
+        type=int,
+        default=50,
+        help='Page length in output.'
     )
 
     return _parser
@@ -123,7 +115,7 @@ def main():
         # Create table
         for i, o in enumerate(output):
             # dumb pagination
-            if i != 0 and (i % 100) == 0:
+            if i != 0 and (i % args.pagination) == 0:
                 check = input("Continue? y/n: ")
                 if not check.lower() == 'y':
                     break
