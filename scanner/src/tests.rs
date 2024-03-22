@@ -34,24 +34,24 @@ fn get_index_path_not_exists() {
 
 #[test]
 fn get_index_path_not_db() {
-    fs::create_dir("./test_dir")
+    fs::create_dir("./not_valid_dir")
         .expect("[get_index_path_not_db] Failed creating directory");
     let mut args_dir: Vec<String> = Vec::new();
-    args_dir.push("./test_dir".to_string());
+    args_dir.push("./not_valid_dir".to_string());
 
     let result_dir = get_index_path(args_dir);
     assert!(result_dir.is_err());
 
     // Test without extension to see if it fails correctly
-    let _file = fs::File::create("./test_dir/not_valid");
+    let _file = fs::File::create("./not_valid_dir/not_valid");
     let mut args_file: Vec<String> = Vec::new();
-    args_file.push("./test_dir/not_valid".to_string());
+    args_file.push("./not_valid_dir/not_valid".to_string());
 
     let result_file = get_index_path(args_file);
 
-    fs::remove_file("./test_dir/not_valid")
+    fs::remove_file("./not_valid_dir/not_valid")
         .expect("[get_index_path_not_db] Failed cleaning file.");
-    fs::remove_dir("./test_dir")
+    fs::remove_dir("./not_valid_dir")
         .expect("[get_index_path_not_db] Failed cleaning directory.");
 
     assert!(result_file.is_err());
@@ -139,6 +139,7 @@ fn valid_target_directory() {
     }
 }
 
+#[ignore] // GitHub won't let it run forever
 #[test]
 fn performance_test() {
     let path = path::Path::new("C:\\");

@@ -15,4 +15,4 @@ jobs:
         name: "Test Scanner"
         run: |
           cd scanner
-          cargo test
+          cargo test -- --nocapture
